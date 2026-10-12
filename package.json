@@ -1,0 +1,18 @@
+{
+  "name": "magpie-plugin-claude-scrub",
+  "version": "0.1.0",
+  "description": "magpie gateway middleware that lets Claude Code chat through Google Antigravity accounts: drops the Anthropic billing-metadata system block that trips Google's disguised 429, and zero-width scrambles client-identity words (CLIProxyAPI sensitive-words style)",
+  "type": "module",
+  "files": ["claude-scrub.middleware.js", "README.md"],
+  "keywords": ["magpie", "magpie-middleware", "magpie-plugin", "antigravity", "gemini", "claude-code", "cli-proxy-api"],
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/heaven-1314/magpie-plugin-claude-scrub.git" },
+  "magpie": {
+    "middleware": "./claude-scrub.middleware.js",
+    "options": {
+      "words": ["Claude Agent SDK", "Claude Code"],
+      "billing": ["x-anthropic-billing-header"],
+      "probe": false
+    }
+  }
+}

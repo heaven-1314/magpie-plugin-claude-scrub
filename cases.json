@@ -1,0 +1,52 @@
+[
+  { "name": "billing block is dropped, prompt blocks stay",
+    "request": { "model": "m", "system": [
+        { "type": "text", "text": "x-anthropic-billing-header: cc_version=2.1.296.2ba; cc_entrypoint=sdk-cli;" },
+        { "type": "text", "text": "You are a helpful assistant." } ],
+      "messages": [{ "role": "user", "content": "hi" }] },
+    "expect_request": { "model": "m", "system": [ { "type": "text", "text": "You are a helpful assistant." } ],
+      "messages": [{ "role": "user", "content": "hi" }] } },
+
+  { "name": "identity words are zero-width scrambled and still read the same",
+    "request": { "model": "m", "system": "You are Claude Code, the Claude Agent SDK CLI.",
+      "messages": [{ "role": "user", "content": "hi Claude Code" }] },
+    "check": "words_scrambled_but_readable" },
+
+  { "name": "defaults apply with no options at all",
+    "ctx": {}, "options": null,
+    "request": { "model": "m", "system": [{ "type": "text", "text": "x-anthropic-billing-header: cc_version=1" }],
+      "messages": [{ "role": "user", "content": "ok" }] },
+    "check": "billing_dropped" },
+
+  { "name": "a clean request goes through untouched",
+    "request": { "model": "m", "system": "You are a helpful assistant.",
+      "messages": [{ "role": "user", "content": "hello" }] } },
+
+  { "name": "custom words replace the defaults",
+    "options": { "words": ["Project-X"] },
+    "request": { "model": "m", "messages": [{ "role": "user", "content": "Claude Code knows project-x" }] },
+    "check": "custom_words_only" },
+
+  { "name": "empty billing list disables layer 1",
+    "options": { "billing": [] },
+    "request": { "model": "m", "system": [{ "type": "text", "text": "x-anthropic-billing-header: keep me" }],
+      "messages": [{ "role": "user", "content": "ok" }] } },
+
+  { "name": "tool_result nested text is scrambled too",
+    "request": { "model": "m", "messages": [{ "role": "user", "content": [
+        { "type": "tool_result", "tool_use_id": "t", "content": [{ "type": "text", "text": "docs say Claude Code" }] } ] }] },
+    "check": "nested_scrambled" },
+
+  { "name": "Chat protocol: string content",
+    "ctx": { "protocol": "chat" },
+    "request": { "model": "m", "messages": [{ "role": "user", "content": "about Claude Code" }] },
+    "check": "words_scrambled_but_readable" },
+
+  { "name": "probe off by default: the magic message just goes to the model",
+    "request": { "model": "m", "messages": [{ "role": "user", "content": "PROBE_CLAUDE_SCRUB" }] } },
+
+  { "name": "probe on: the magic message is turned away with 418",
+    "options": { "probe": true },
+    "request": { "model": "m", "messages": [{ "role": "user", "content": "PROBE_CLAUDE_SCRUB" }] },
+    "reject": { "status": 418, "message": "claude-scrub middleware alive" } }
+]
