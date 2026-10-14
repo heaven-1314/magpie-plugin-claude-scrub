@@ -9,16 +9,21 @@
 // drop the block → 200, keep it → 429 every time; headers, metadata.user_id,
 // tools and the request path were all innocent).
 //
-// So this middleware drops those blocks, and as a second layer zero-width
-// scrambles client-identity words in system and messages the way
-// CLIProxyAPI's antigravity sensitive-words does: the text reads the same to
-// the model, the filter no longer matches.
+// v0.2 scope change (2026-10-14): the zero-width identity-word scramble is
+// now OPT-IN and system-only. The old default also rewrote `messages` —
+// including tool_result text, i.e. file contents the model has read. The
+// model then copies those zero-width-laced strings into Edit old_string /
+// new_string and into files it writes, silently breaking exact matches and
+// poisoning user files (pointed out by yetone when closing the upstream
+// registry PR). The billing block alone carries the whole fix, so by default
+// nothing but the billing block is touched; if you opt back into `words`,
+// only `system` is rewritten — never messages.
 //
-//   { "words":   ["Claude Agent SDK", "Claude Code"],   // second layer
-//     "billing": ["x-anthropic-billing-header"],        // system blocks dropped
-//     "probe":   false }                                 // liveness probe
+//   { "billing": ["x-anthropic-billing-header"],  // system blocks dropped
+//     "words":   [],                              // opt-in, system-only
+//     "probe":   false }                          // liveness probe
 //
-// "words"/"billing" replace the defaults when given; "[]" disables a layer.
+// "billing"/"words" replace the defaults when given; "[]" disables a layer.
 // "probe": true turns a user message of exactly "PROBE_CLAUDE_SCRUB" into a
 // 418, proving the middleware is loaded and running.
 //
@@ -27,7 +32,7 @@
 
 const ZW = "​"; // zero-width space
 
-const defaultWords = ["Claude Agent SDK", "Claude Code"];
+const defaultWords = []; // opt-in; when set, only `system` is scrubbed — never messages
 const defaultBilling = ["x-anthropic-billing-header"];
 
 export function onRequest(body, ctx) {
@@ -55,7 +60,8 @@ export function onRequest(body, ctx) {
     if (kept.length !== body.system.length) { body.system = kept; changed = true }
   }
 
-  // layer 2: zero-width scramble the identity words
+  // layer 2 (opt-in): zero-width scramble identity words, `system` only.
+  // Messages and tool_result are deliberately left alone — see header note.
   const words = o.words ?? defaultWords
   const re = Array.isArray(words) && words.length
     ? new RegExp("(" + words.filter(w => typeof w === "string" && w).map(escapeRe).join("|") + ")", "gi")
@@ -65,17 +71,6 @@ export function onRequest(body, ctx) {
     if (typeof body.system === "string") body.system = hide(body.system)
     else if (Array.isArray(body.system))
       for (const b of body.system) if (b && typeof b.text === "string") b.text = hide(b.text)
-    if (Array.isArray(body.messages))
-      for (const m of body.messages) {
-        if (!m) continue
-        if (typeof m.content === "string") m.content = hide(m.content)
-        else if (Array.isArray(m.content))
-          for (const b of m.content) {
-            if (b && typeof b.text === "string") b.text = hide(b.text)
-            if (b && Array.isArray(b.content))
-              for (const c of b.content) if (c && typeof c.text === "string") c.text = hide(c.text)
-          }
-      }
   }
 
   return changed ? body : undefined

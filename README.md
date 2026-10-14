@@ -20,12 +20,15 @@ Ablation-tested (2026-10-12): drop that one block → 200, keep it → 429 every
 
 ## What it does
 
-Two layers, both in `onRequest`, before the request leaves the gateway:
+**By default exactly one thing**: system blocks containing a `billing` marker (default `x-anthropic-billing-header`) are dropped in `onRequest`, before the request leaves the gateway. The block carries the whole fix — nothing else in the request is touched.
 
-1. **Drops system blocks** containing any `billing` marker (default `x-anthropic-billing-header`).
-2. **Zero-width scrambles identity words** (default `Claude Agent SDK`, `Claude Code`) in system and message text, the way CLIProxyAPI's `antigravity.sensitive-words` does: the model still reads the words, a substring filter no longer matches them.
+### Optional: system-only identity scramble
 
-Matching is case-insensitive. Tool results' nested text is covered too. A hook that throws leaves the request as it was, and every step touches only shapes it recognizes.
+A second layer can zero-width scramble client-identity words (CLIProxyAPI `antigravity.sensitive-words` style): the model still reads the words, a substring filter no longer matches them. It is **off by default**, and when enabled it rewrites **`system` only — never `messages` or `tool_result`**.
+
+Why: v0.1 scrambled message text too, including tool results — the file contents the model has read. The model then copies those zero-width-laced strings into `Edit` old/new strings and into files it writes, silently breaking exact matches and poisoning user files. That critique (upstream registry PR #93, closed 2026-10-12) is correct, and the billing block never needed the help.
+
+Matching is case-insensitive. A hook that throws leaves the request as it was, and every step touches only shapes it recognizes.
 
 For your own subscription accounts, one gateway, one user.
 
@@ -40,13 +43,13 @@ Or from a checkout: `magpie plugin add ./claude-scrub.middleware.js`. Edits to t
 ## Options
 
 ```json
-{ "words":   ["Claude Agent SDK", "Claude Code"],
+{ "words":   [],
   "billing": ["x-anthropic-billing-header"],
   "probe":   false }
 ```
 
-- **`words`.** Second-layer scramble list. Given, it replaces the default; `[]` disables the layer.
 - **`billing`.** Markers of system blocks to drop. Given, it replaces the default; `[]` disables the layer.
+- **`words`.** Opt-in scramble list, applied to `system` only. Given, it enables the layer; `[]` (the default) keeps it off.
 - **`probe`.** When `true`, a user message of exactly `PROBE_CLAUDE_SCRUB` is answered with a 418, proving the middleware is loaded and running (handy while setting things up).
 
 Set them under **Plugins › Installed › Options**, or `magpie plugin options claude-scrub '<json>'`.
